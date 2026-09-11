@@ -73,12 +73,36 @@ private struct SetupView: View {
                 .tracking(-2.2)
                 .padding(.top, 24)
 
-            Text("Import a desktop screenshot to preview the floating glass effect. In the test view, open your MacBook lid to your comfortable daily viewing angle and save it as the unfolded endpoint. The effect will transition smoothly from 0° to that position.")
+            Text("Import a desktop screenshot to preview the floating glass effect. Set your comfortable daily viewing angle (default 110°) as the unfolded endpoint. The effect transitions smoothly from 0° into full clarity.")
                 .font(.system(size: 17, weight: .regular))
                 .foregroundStyle(.white.opacity(0.62))
                 .lineSpacing(5)
                 .frame(maxWidth: 450, alignment: .leading)
                 .padding(.top, 18)
+
+            HStack(spacing: 8) {
+                Text("Endpoint:")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.72))
+                ForEach([100, 105, 110, 115, 120], id: \.self) { deg in
+                    Button(action: { model.setOpenAngle(Double(deg)) }) {
+                        Text("\(deg)°\(deg == 110 ? " ★" : "")")
+                            .font(.system(size: 12, weight: Int(model.openAngle.rounded()) == deg ? .bold : .regular))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(
+                                Int(model.openAngle.rounded()) == deg ? Color.white.opacity(0.28) : Color.white.opacity(0.08),
+                                in: Capsule()
+                            )
+                            .overlay(
+                                Capsule().stroke(Int(model.openAngle.rounded()) == deg ? Color.white.opacity(0.65) : Color.clear, lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white)
+                }
+            }
+            .padding(.top, 16)
 
             HStack(spacing: 9) {
                 Circle()
@@ -89,7 +113,7 @@ private struct SetupView: View {
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.white.opacity(0.72))
             }
-            .padding(.top, 24)
+            .padding(.top, 16)
 
             HStack(spacing: 12) {
                 Button(action: model.importScreenshot) {
@@ -204,7 +228,7 @@ private struct TestView: View {
     var body: some View {
         ZStack {
             if let image = model.desktopImage {
-                GlassSurface(image: image, tilt: model.showOriginal ? 0 : 80 * (1 - pow(min(model.openAngle, max(0, angle)) / model.openAngle, 1 / strength)),
+                GlassSurface(image: image, tilt: model.showOriginal ? 0 : 80 * pow(model.effectRemaining(for: angle), 1.0 / strength),
                              frost: frost, distance: distance)
                     .ignoresSafeArea()
             }
@@ -227,17 +251,27 @@ private struct TestView: View {
                             Circle().fill(model.useSensor && sensor.isAvailable ? Color.green : Color.orange)
                                 .frame(width: 7, height: 7)
                             Text("\(Int(angle.rounded()))°").monospacedDigit()
-                            Text("0–\(Int(model.openAngle.rounded()))°").foregroundStyle(.secondary)
+                            Text("Active: 0–\(Int(model.openAngle.rounded()))°").foregroundStyle(.secondary)
                             Spacer()
                             Toggle("Compare Original ⌘B", isOn: $model.showOriginal).toggleStyle(.checkbox)
-                            Button("Save Endpoint ⌘K") { model.saveOpenAngle() }
+                            Button("Save Current ⌘K") { model.saveOpenAngle() }
                         }
                         HStack {
+                            Text("Endpoint").frame(width: 60, alignment: .leading)
+                            Slider(value: Binding(
+                                get: { model.openAngle },
+                                set: { model.setOpenAngle($0) }
+                            ), in: 80...140, step: 1)
+                            Text("\(Int(model.openAngle.rounded()))°").monospacedDigit().frame(width: 35)
+                            Spacer()
                             if sensor.isAvailable {
                                 Toggle("Live Hinge", isOn: $model.useSensor).toggleStyle(.switch).controlSize(.small)
                             }
-                            Spacer()
-                            Text(model.calibrationMessage.isEmpty ? "Open lid to comfortable angle and save as endpoint" : model.calibrationMessage).foregroundStyle(.secondary)
+                        }
+                        if !model.calibrationMessage.isEmpty {
+                            Text(model.calibrationMessage)
+                                .foregroundStyle(.secondary)
+                                .font(.system(size: 11))
                         }
                         if !model.useSensor || !sensor.isAvailable {
                             HStack {

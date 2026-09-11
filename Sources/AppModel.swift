@@ -17,7 +17,7 @@ final class AppModel: ObservableObject {
     @Published var controlsHidden = false
     @Published var showOriginal = false
     @Published var calibrationMessage = ""
-    @Published var openAngle = 120.0
+    @Published var openAngle = 110.0
     @Published var globalStatus = "Real-time desktop mode requires screen recording permission"
     @Published var globalRunning = false
     @Published var permissionsPreparing = true
@@ -26,6 +26,13 @@ final class AppModel: ObservableObject {
 
     var currentAngle: Double { useSensor && sensor.isAvailable ? sensor.angle : simulatedAngle }
 
+    func setOpenAngle(_ value: Double) {
+        let clamped = max(50.0, min(180.0, value))
+        openAngle = clamped
+        UserDefaults.standard.set(clamped, forKey: "calibratedOpenAngle")
+        calibrationMessage = "Endpoint set to \(Int(clamped.rounded()))°"
+    }
+
     func saveOpenAngle() {
         let value = currentAngle
         guard value.isFinite, value >= 1, value <= 180 else {
@@ -33,16 +40,25 @@ final class AppModel: ObservableObject {
             controlsHidden = false
             return
         }
-        openAngle = value
-        UserDefaults.standard.set(value, forKey: "calibratedOpenAngle")
-        calibrationMessage = "Endpoint saved"
+        setOpenAngle(value)
+        calibrationMessage = "Endpoint saved: \(Int(value.rounded()))°"
+    }
+
+    func effectRemaining(for angle: Double) -> Double {
+        // Transitions to fully clear slightly before reaching openAngle (e.g. 4° earlier),
+        // ensuring the screen is completely crisp and clear when working at the designated open angle.
+        let clearThreshold = max(10.0, openAngle - 4.0)
+        let clamped = max(0.0, min(clearThreshold, angle))
+        let normalized = clamped / clearThreshold
+        let remaining = pow(1.0 - normalized, 1.25)
+        return remaining < 0.005 ? 0.0 : remaining
     }
 
     let sensor = LidAngleSensor()
 
     init() {
         let saved = UserDefaults.standard.object(forKey: "calibratedOpenAngle") as? Double
-            ?? UserDefaults(suiteName: "studio.prototype.HingeGlass")?.double(forKey: "calibratedOpenAngle") ?? 120
+            ?? UserDefaults(suiteName: "studio.prototype.HingeGlass")?.double(forKey: "calibratedOpenAngle") ?? 110.0
         if saved >= 1 && saved <= 180 { openAngle = saved }
         sensor.start()
     }

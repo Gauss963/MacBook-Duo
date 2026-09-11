@@ -51,10 +51,28 @@ final class GlobalDesktopController: NSObject, @preconcurrency SCStreamOutput, S
         let menu = NSMenu()
         statusLine = NSMenuItem(title: "Not Started", action: nil, keyEquivalent: "")
         menu.addItem(statusLine)
+        menu.addItem(NSMenuItem.separator())
         for (title, action) in [
             ("Preview Real-Time Effect (8s)", #selector(preview)),
             ("Toggle Global Effect   ⌘⇧G", #selector(toggle)),
-            ("Save Current Angle as Endpoint   ⌘⇧K", #selector(calibrate)),
+            ("Save Current Angle as Endpoint   ⌘⇧K", #selector(calibrate))
+        ] {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self
+            menu.addItem(item)
+        }
+        let endpointMenu = NSMenu()
+        for deg in [100, 105, 110, 115, 120] {
+            let item = NSMenuItem(title: "\(deg)°\(deg == 110 ? " (Default)" : "")", action: #selector(setEndpointFromMenu(_:)), keyEquivalent: "")
+            item.tag = deg
+            item.target = self
+            endpointMenu.addItem(item)
+        }
+        let endpointItem = NSMenuItem(title: "Set Endpoint Angle", action: nil, keyEquivalent: "")
+        endpointItem.submenu = endpointMenu
+        menu.addItem(endpointItem)
+        menu.addItem(NSMenuItem.separator())
+        for (title, action) in [
             ("Open Settings   ⌘⇧Esc", #selector(showSetup)),
             ("Quit MacBook Duo", #selector(quit))
         ] {
@@ -113,6 +131,9 @@ final class GlobalDesktopController: NSObject, @preconcurrency SCStreamOutput, S
         // Global mode always calibrates the real hinge, never a preview slider.
         model.useSensor = true
         model.saveOpenAngle()
+    }
+    @objc private func setEndpointFromMenu(_ sender: NSMenuItem) {
+        model.setOpenAngle(Double(sender.tag))
     }
     @objc func showSetup() {
         stop(reason: "Global effect stopped")
@@ -370,11 +391,11 @@ final class GlobalDesktopController: NSObject, @preconcurrency SCStreamOutput, S
         }
         // A static desktop may legitimately produce no new complete frames.
         // Keep the last valid texture; explicit stream errors still stop immediately.
-        let remaining = Date() < previewUntil ? 0.35 : max(0, 1 - model.sensor.angle / model.openAngle)
+        let remaining = Date() < previewUntil ? 0.35 : model.effectRemaining(for: model.sensor.angle)
         renderer.setLiveAngle(remaining * 80)
         // Hysteresis prevents overlay flicker near the calibrated endpoint.
-        if remaining > 0.008 { requestedVisible = true }
-        if remaining == 0 && renderer.settled { requestedVisible = false }
+        if remaining > 0.005 { requestedVisible = true }
+        if remaining <= 0.001 && renderer.settled { requestedVisible = false }
         if requestedVisible && receivedFrame && renderer.readyForDisplay {
             if !overlay.isVisible { overlay.orderFrontRegardless() }
         } else { overlay.orderOut(nil) }
