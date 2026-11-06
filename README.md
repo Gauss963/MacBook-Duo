@@ -2,6 +2,12 @@
 
 MacBook Duo brings depth and perspective to your MacBook display as you open and close the lid. Using the built-in lid angle sensor and Metal shaders, display contents appear anchored in 3D physical space, transitioning smoothly with realistic perspective projection and frosted glass depth-of-field effects.
 
+## Download
+
+Download **MacBook Duo 1.0.0 for Apple Silicon** from the [GitHub Releases](https://github.com/Gauss963/MacBook-Duo/releases/tag/v1.0.0) page. Unzip the download and move `MacBook Duo.app` to Applications.
+
+The release is ad-hoc signed and is not notarized. macOS may require you to Control-click the app and choose **Open** the first time you launch it.
+
 ## Features
 
 - **Perspective Glass Effect**: Treats your desktop as a plane fixed in physical space. As the MacBook screen tilts along the bottom hinge, Metal calculates ray intersections per pixel and applies a graduated frosted blur.

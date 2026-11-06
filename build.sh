@@ -19,6 +19,7 @@ cp "$PROJECT_DIR/Assets/MacBookDuo.png" "$CONTENTS_DIR/Resources/"
 cp "$PROJECT_DIR/Info.plist" "$CONTENTS_DIR/Info.plist"
 
 TMPDIR="$BUILD_CACHE" xcrun swiftc \
+  -target arm64-apple-macos14.0 \
   -module-cache-path "$BUILD_CACHE/modules" \
   -parse-as-library \
   -O \

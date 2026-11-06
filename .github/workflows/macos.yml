@@ -1,0 +1,79 @@
+name: macOS CI and Release
+
+on:
+  push:
+    branches: [main]
+    tags: [v1.0.0]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Run permission preparation tests
+        run: |
+          xcrun swiftc \
+            -module-cache-path "$RUNNER_TEMP/swift-module-cache" \
+            -parse-as-library \
+            -framework Security \
+            -o "$RUNNER_TEMP/PermissionPreparationTests" \
+            Sources/ScreenCapturePermissionPreparation.swift \
+            Tests/PermissionPreparationTests.swift
+          "$RUNNER_TEMP/PermissionPreparationTests"
+
+      - name: Build Apple Silicon app
+        run: ./build.sh
+
+      - name: Verify architecture and create release archive
+        run: |
+          APP="MacBook Duo.app"
+          EXECUTABLE="$APP/Contents/MacOS/HingeGlass"
+          lipo "$EXECUTABLE" -verify_arch arm64
+          ARCHIVE="$RUNNER_TEMP/MacBook-Duo-v1.0.0-Apple-Silicon.zip"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$ARCHIVE"
+          shasum -a 256 "$ARCHIVE" > "$ARCHIVE.sha256"
+
+      - name: Upload app archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: MacBook-Duo-v1.0.0-Apple-Silicon
+          path: |
+            ${{ runner.temp }}/MacBook-Duo-v1.0.0-Apple-Silicon.zip
+            ${{ runner.temp }}/MacBook-Duo-v1.0.0-Apple-Silicon.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/tags/v1.0.0'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download app archive
+        uses: actions/download-artifact@v4
+        with:
+          name: MacBook-Duo-v1.0.0-Apple-Silicon
+          path: release-assets
+
+      - name: Create or update GitHub Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view v1.0.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create v1.0.0 \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "MacBook Duo 1.0.0" \
+              --notes "Apple Silicon release of MacBook Duo. The app is ad-hoc signed and is not notarized."
+          fi
+          gh release upload v1.0.0 release-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --clobber
